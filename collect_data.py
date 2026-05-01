@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 SIGNS = ['hello', 'thankyou', 'yes', 'no', 'one', 'two', 'three', 'four', 'five']
-SAMPLES_PER_SIGN = 100
+SAMPLES_PER_SIGN = 200
 
 os.makedirs('dataset', exist_ok=True)
 cap = cv2.VideoCapture(0)
@@ -12,10 +12,12 @@ IMG_SIZE = 64
 
 for sign in SIGNS:
     print(f"\n>>> '{sign}' ke liye tayar ho jao!")
+    print("Haath camera ke BILKUL SAAMNE rakho")
     print("ENTER dabao shuru karne ke liye")
-    input()  # ENTER dabao
+    input()
 
     data = []
+    print("Collecting shuru...")
 
     while len(data) < SAMPLES_PER_SIGN:
         ret, frame = cap.read()
@@ -23,8 +25,14 @@ for sign in SIGNS:
             break
         frame = cv2.flip(frame, 1)
 
+        # Sirf beech wala chota hissa lo
         h, w = frame.shape[:2]
-        x1, y1, x2, y2 = w//4, h//4, 3*w//4, 3*h//4
+        cx, cy = w//2, h//2
+        size = min(h, w) // 3
+        x1 = cx - size
+        x2 = cx + size
+        y1 = cy - size
+        y2 = cy + size
 
         hand_roi = frame[y1:y2, x1:x2]
         resized = cv2.resize(hand_roi, (IMG_SIZE, IMG_SIZE))
@@ -35,7 +43,10 @@ for sign in SIGNS:
         print(f"{sign}: {len(data)}/{SAMPLES_PER_SIGN}", end='\r')
 
     np.save(f'dataset/{sign}.npy', np.array(data))
-    print(f"\n✓ {sign} done! {len(data)} samples save ho gaye")
+    print(f"\n✓ {sign} done!")
+    print("5 second rest karo...")
+    import time
+    time.sleep(5)
 
 cap.release()
 print("\nSab signs collect ho gaye!")
