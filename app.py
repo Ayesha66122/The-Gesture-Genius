@@ -4,6 +4,10 @@ import pickle
 import cv2
 from PIL import Image
 from chatbot import chatbot_response
+from gtts import gTTS
+import base64
+import tempfile
+import os
 
 st.set_page_config(
     page_title="The Gesture Genius",
@@ -12,9 +16,28 @@ st.set_page_config(
 )
 
 st.title("🤟 The Gesture Genius")
-st.subheader("Pakistani Sign Language (PSL) Detection + Chatbot")
+st.subheader("Pakistani Sign Language (PSL) Detection + Chatbot + Voice")
 st.markdown("### Hackathon Project - Team: The Gesture Genius")
 st.write("---")
+
+# Voice function
+def text_to_speech(text):
+    try:
+        tts = gTTS(text=text, lang='en')
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
+            tts.save(fp.name)
+            with open(fp.name, 'rb') as f:
+                audio_data = f.read()
+            os.unlink(fp.name)
+        audio_b64 = base64.b64encode(audio_data).decode()
+        audio_html = f"""
+            <audio autoplay>
+                <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+            </audio>
+        """
+        st.markdown(audio_html, unsafe_allow_html=True)
+    except:
+        st.warning("Voice available nahi hai abhi.")
 
 # Model load karo
 @st.cache_resource
@@ -38,8 +61,6 @@ else:
     st.success("✅ Model ready hai!")
 
     st.write("### 📷 Sign Karein")
-    st.write("Camera mein sign karein — AI pehchaan kar jawab dega!")
-
     img_file = st.camera_input("Sign karein yahan")
 
     if img_file is not None:
@@ -64,20 +85,22 @@ else:
             st.metric("Confidence", f"{confidence:.1f}%")
 
         if confidence > 30:
-            # Chatbot se jawab lo
             bot_reply = chatbot_response(sign_name)
 
-            # History mein add karo
             st.session_state.chat_history.append({
                 "sign": sign_name.upper(),
                 "reply": bot_reply
             })
 
             st.success(f"🤖 Chatbot: {bot_reply}")
+
+            # Awaaz mein bolo
+            text_to_speech(bot_reply)
+
         else:
             st.warning("Confidence kam hai - dobara try karein")
 
-    # Chat history dikhao
+    # Chat history
     if st.session_state.chat_history:
         st.write("---")
         st.write("### 💬 Chat History")
