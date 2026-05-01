@@ -63,7 +63,7 @@ else:
         with col2:
             st.metric("Confidence", f"{confidence:.1f}%")
 
-        if confidence > 50:
+        if confidence > 30:
             # Chatbot se jawab lo
             bot_reply = chatbot_response(sign_name)
 
