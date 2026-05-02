@@ -8,6 +8,7 @@ from gtts import gTTS
 import base64
 import tempfile
 import os
+import mediapipe as mp
 
 st.set_page_config(
     page_title="The Gesture Genius",
@@ -20,6 +21,9 @@ st.subheader("Pakistani Sign Language (PSL) Detection")
 st.markdown("### Hackathon Project - Team: The Gesture Genius")
 st.write("---")
 
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+
 def text_to_speech(text):
     try:
         tts = gTTS(text=text, lang='en')
@@ -29,8 +33,10 @@ def text_to_speech(text):
                 audio_data = f.read()
             os.unlink(fp.name)
         audio_b64 = base64.b64encode(audio_data).decode()
-        st.markdown(f'<audio autoplay><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>',
-                    unsafe_allow_html=True)
+        st.markdown(
+            f'<audio autoplay><source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3"></audio>',
+            unsafe_allow_html=True
+        )
     except:
         pass
 
@@ -53,49 +59,47 @@ if model is None:
 else:
     st.success("✅ Model ready hai!")
     st.write("### 📷 Sign Karein")
-    st.info("👆 Haath bilkul camera ke saamne rakho — seedha aur clear!")
+    st.info("👆 Haath bilkul camera ke saamne rakho!")
+
     img_file = st.camera_input("Sign karein yahan")
 
     if img_file is not None:
         img = Image.open(img_file)
         img_array = np.array(img)
 
-        IMG_SIZE = 64
-        h, w = img_array.shape[:2]
-        cx, cy = w//2, h//2
-        size = min(h, w) // 3
-        x1 = max(0, cx - size)
-        x2 = min(w, cx + size)
-        y1 = max(0, cy - size)
-        y2 = min(h, cy + size)
+        rgb = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+        result = hands.process(rgb)
 
-        hand_roi = img_array[y1:y2, x1:x2]
-        gray = cv2.cvtColor(hand_roi, cv2.COLOR_RGB2GRAY)
-        resized = cv2.resize(gray, (IMG_SIZE, IMG_SIZE))
-        normalized = resized / 255.0
-        features = normalized.flatten().reshape(1, -1)
+        if result.multi_hand_landmarks:
+            landmarks = []
+            for lm in result.multi_hand_landmarks[0].landmark:
+                landmarks.extend([lm.x, lm.y, lm.z])
 
-        prediction = model.predict(features)[0]
-        confidence = model.predict_proba(features)[0][prediction] * 100
-        sign_name = SIGNS[prediction]
+            features = np.array(landmarks).reshape(1, -1)
+            prediction = model.predict(features)[0]
+            confidence = model.predict_proba(features)[0][prediction] * 100
+            sign_name = SIGNS[prediction]
 
-        st.write("---")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Detected Sign", sign_name.upper())
-        with col2:
-            st.metric("Confidence", f"{confidence:.1f}%")
+            st.write("---")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Detected Sign", sign_name.upper())
+            with col2:
+                st.metric("Confidence", f"{confidence:.1f}%")
 
-        if confidence > 30:
-            bot_reply = chatbot_response(sign_name)
-            st.session_state.chat_history.append({
-                "sign": sign_name.upper(),
-                "reply": bot_reply
-            })
-            st.success(f"🤖 Chatbot: {bot_reply}")
-            text_to_speech(bot_reply)
+            if confidence > 30:
+                bot_reply = chatbot_response(sign_name)
+                st.session_state.chat_history.append({
+                    "sign": sign_name.upper(),
+                    "reply": bot_reply
+                })
+                st.success(f"🤖 Chatbot: {bot_reply}")
+                text_to_speech(bot_reply)
+            else:
+                st.warning("Dobara try karein!")
         else:
-            st.warning("Dobara try karein — haath bilkul beech mein rakho!")
+            st.warning("⚠️ Haath nahi dikh raha! Haath camera ke saamne rakho!")
 
 if st.session_state.chat_history:
     st.write("---")
