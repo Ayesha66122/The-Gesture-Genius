@@ -8,6 +8,7 @@ from gtts import gTTS
 import base64
 import tempfile
 import os
+import mediapipe as mp
 
 st.set_page_config(
     page_title="The Gesture Genius",
@@ -19,6 +20,10 @@ st.title("🤟 The Gesture Genius")
 st.subheader("Pakistani Sign Language (PSL) Detection + Chatbot + Voice")
 st.markdown("### Hackathon Project - Team: The Gesture Genius")
 st.write("---")
+
+# MediaPipe setup
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
 
 # Voice function
 def text_to_speech(text):
@@ -39,7 +44,7 @@ def text_to_speech(text):
     except:
         st.warning("Voice available nahi hai abhi.")
 
-# Model load karo
+# Model load
 @st.cache_resource
 def load_model():
     try:
@@ -56,10 +61,9 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 if model is None:
-    st.error("Model load nahi hua! gesture_model.pkl check karo.")
+    st.error("Model load nahi hua!")
 else:
     st.success("✅ Model ready hai!")
-
     st.write("### 📷 Sign Karein")
     img_file = st.camera_input("Sign karein yahan")
 
@@ -67,40 +71,41 @@ else:
         img = Image.open(img_file)
         img_array = np.array(img)
 
-        IMG_SIZE = 64
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        resized = cv2.resize(gray, (IMG_SIZE, IMG_SIZE))
-        normalized = resized / 255.0
-        features = normalized.flatten().reshape(1, -1)
+        # MediaPipe se landmarks lo
+        rgb = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+        result = hands.process(rgb)
 
-        prediction = model.predict(features)[0]
-        confidence = model.predict_proba(features)[0][prediction] * 100
-        sign_name = SIGNS[prediction]
+        if result.multi_hand_landmarks:
+            landmarks = []
+            for lm in result.multi_hand_landmarks[0].landmark:
+                landmarks.extend([lm.x, lm.y, lm.z])
 
-        st.write("---")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Detected Sign", sign_name.upper())
-        with col2:
-            st.metric("Confidence", f"{confidence:.1f}%")
+            features = np.array(landmarks).reshape(1, -1)
+            prediction = model.predict(features)[0]
+            confidence = model.predict_proba(features)[0][prediction] * 100
+            sign_name = SIGNS[prediction]
 
-        if confidence > 30:
-            bot_reply = chatbot_response(sign_name)
+            st.write("---")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Detected Sign", sign_name.upper())
+            with col2:
+                st.metric("Confidence", f"{confidence:.1f}%")
 
-            st.session_state.chat_history.append({
-                "sign": sign_name.upper(),
-                "reply": bot_reply
-            })
-
-            st.success(f"🤖 Chatbot: {bot_reply}")
-
-            # Awaaz mein bolo
-            text_to_speech(bot_reply)
-
+            if confidence > 30:
+                bot_reply = chatbot_response(sign_name)
+                st.session_state.chat_history.append({
+                    "sign": sign_name.upper(),
+                    "reply": bot_reply
+                })
+                st.success(f"🤖 Chatbot: {bot_reply}")
+                text_to_speech(bot_reply)
+            else:
+                st.warning("Confidence kam hai - dobara try karein")
         else:
-            st.warning("Confidence kam hai - dobara try karein")
+            st.warning("Haath nahi dikh raha! Haath camera ke saamne rakho!")
 
-    # Chat history
     if st.session_state.chat_history:
         st.write("---")
         st.write("### 💬 Chat History")
